@@ -112,7 +112,13 @@ int main(int argc, char** argv)
 
     std::cout << "Connection Initialized!" << std::endl;
 
-    std::uniform_real_distribution<double> unif(0, 1);
+    // create_db
+    string resp;
+    auto infPtr = connPool->GetConnecion();
+    influxdb_cpp::create_db(infPtr->getSocketId(), resp, database, *infPtr->siPtr.get());
+    connPool->ReleaseConnecion(infPtr);
+    
+    cout << "CREATEDB: " << resp << endl;
 
     while(running) // Crtl + C to stop
     {
@@ -128,7 +134,12 @@ int main(int argc, char** argv)
                 .field("value", value)
                 .post_http(influxPtr->getSocketId(), *influxPtr->siPtr.get(), &resp);
 
-            cout << "POST: " << ret << endl << resp << endl;
+            ostringstream oss;
+            if(ret == 0)
+                oss << "POST successful. Code " << ret << "\n";
+            else
+                oss << "POST failed. Code " << ret << ". Error " << resp << "\n";
+            cout << oss.str();
 
             connPool->ReleaseConnecion(influxPtr);
         }).detach();

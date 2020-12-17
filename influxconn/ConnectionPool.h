@@ -19,8 +19,8 @@ public:
 
     ~ConnectionPool();
 
-    std::shared_ptr<InfluxConnection> GetConnecion(unsigned int timeout=0);
-    bool ReleaseConnecion(std::shared_ptr<InfluxConnection> sqlPtr);
+    InfluxConnection* GetConnecion(unsigned int timeout=0);
+    bool ReleaseConnecion(InfluxConnection* sqlPtr);
 
     bool OpenPoolConnections();
     void ResetPoolConnections();
@@ -33,7 +33,7 @@ private:
     bool hasActiveConnections;
     std::unordered_set<int> Indexes;
     moodycamel::ReaderWriterQueue<int> connectionQueue;
-    std::vector<std::shared_ptr<InfluxConnection>> mySqlPtrList;
+    std::vector<std::unique_ptr<InfluxConnection>> mySqlPtrList;
 };
 
 
@@ -99,7 +99,7 @@ bool ConnectionPool::HasActiveConnections()
 }
 
 
-std::shared_ptr<InfluxConnection> ConnectionPool::GetConnecion(unsigned int timeout)
+InfluxConnection* ConnectionPool::GetConnecion(unsigned int timeout)
 {
     if(!hasActiveConnections)
     {
@@ -124,7 +124,7 @@ std::shared_ptr<InfluxConnection> ConnectionPool::GetConnecion(unsigned int time
             if(it != Indexes.end())
                 Indexes.erase(ind);
             _pool_mutex.unlock();
-            return mySqlPtrList[ind];
+            return mySqlPtrList[ind].get();
         }
 
         // set max waiting time to get connection
@@ -143,7 +143,7 @@ std::shared_ptr<InfluxConnection> ConnectionPool::GetConnecion(unsigned int time
 }
 
 
-bool ConnectionPool::ReleaseConnecion(std::shared_ptr<InfluxConnection> sqlPtr)
+bool ConnectionPool::ReleaseConnecion(InfluxConnection* sqlPtr)
 {
     if(sqlPtr->getPoolId() > -1)
     {

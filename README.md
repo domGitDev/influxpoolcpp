@@ -12,6 +12,7 @@
 
 # ##########################################################
 
+![ARCHITECTURE](Pool_Architecture.png)
 
 # INCLUDE IN PROJECT
 

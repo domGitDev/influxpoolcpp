@@ -4,5 +4,7 @@ user INFLUXDB_USER
 port 8086
 org INFLUXDB_ORGANIZATION_NAME
 bucket BUCKET_NAME
+databse DB_NAME
+table TABLE_NAME
 password INFLUXDB_TOKEN
 connections 2

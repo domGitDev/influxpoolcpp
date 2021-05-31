@@ -85,8 +85,8 @@ int main(int argc, char** argv)
 	auto pit = dbconfigs.find("port");
 	auto uit = dbconfigs.find("user");
 	auto pwdit = dbconfigs.find("password");
-	auto dit = dbconfigs.find("database");
-    auto tbit = dbconfigs.find("table");
+	auto dit = dbconfigs.find("bucket");
+    auto tbit = dbconfigs.find("org");
 
 	if(pit == dbconfigs.end() || hit == dbconfigs.end() || uit == dbconfigs.end() || 
         pwdit == dbconfigs.end() || dit == dbconfigs.end() || tbit == dbconfigs.end())
@@ -96,13 +96,15 @@ int main(int argc, char** argv)
 	}
 
     int port = std::stoi(dbconfigs.at("port"));
-    std::string database = dbconfigs.at("database");
-    std::string table = dbconfigs.at("table");
+    std::string table = dbconfigs.at("database");
+    std::string database = dbconfigs.at("table");
+    std::string org = dbconfigs.at("org");
+    std::string bucket = dbconfigs.at("bucket");
 
     size_t NUM_CONNS = 3;
     connPool.reset(new ConnectionPool(
-                    dbconfigs.at("dbhost"), port, dbconfigs.at("user"), 
-                    dbconfigs.at("password"), database, NUM_CONNS));
+            dbconfigs.at("dbhost"), port, dbconfigs.at("user"), 
+            dbconfigs.at("password"), org, bucket, database, NUM_CONNS));
 
     if(!connPool->HasActiveConnections())
     {

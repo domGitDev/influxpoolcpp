@@ -1,7 +1,8 @@
+# influxdb version 2.xx
 dbhost 127.0.0.1
-port 3306
-user root
-password dom@1234
-database bncfut30min
-table BTCUSDT
+user INFLUXDB_USER
+port 8086
+org INFLUXDB_ORGANIZATION_NAME
+bucket BUCKET_NAME
+password INFLUXDB_TOKEN
 connections 2

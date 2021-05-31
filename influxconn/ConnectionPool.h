@@ -6,9 +6,8 @@
 #include <chrono>
 #include <unordered_set>
 
-#include "AtomicLock.h"
 #include "InfluxConnection.h"
-#include "readerwriterqueue.h"
+#include "concurrentqueue.h"
 
 class ConnectionPool
 {
@@ -29,11 +28,11 @@ public:
     bool HasActiveConnections();
 
 private:
-    AtomicLock _pool_mutex;
+    std::atomic_flag _pool_mutex;
     bool hasActiveConnections;
     std::unordered_set<int> Indexes;
-    moodycamel::ReaderWriterQueue<int> connectionQueue;
-    std::vector<std::unique_ptr<InfluxConnection>> mySqlPtrList;
+    moodycamel::ConcurrentQueue<int> connectionQueue;
+    std::vector<std::unique_ptr<InfluxConnection>> infdbPtrList;
 };
 
 
@@ -52,13 +51,14 @@ ConnectionPool::ConnectionPool(
         bool success = false;
         try
         {
+            _pool_mutex.test_and_set(std::memory_order_acquire);
             for(int i=0; i < numConnection; i++)
             {
-                mySqlPtrList.emplace_back(
+                infdbPtrList.emplace_back(
                     new InfluxConnection(server, port, user, password, database, i));
 
                 success = false;
-                success = mySqlPtrList[i]->open();
+                success = infdbPtrList[i]->open();
                 
                 if(success)
                 {
@@ -73,12 +73,13 @@ ConnectionPool::ConnectionPool(
                 }
             }
 
-            size_t count = mySqlPtrList.size();
+            size_t count = infdbPtrList.size();
             if(success && count > 0 && count == connectionQueue.size_approx())
             {
                 hasActiveConnections = true;
                 std::cout << "Pool created successfully." << std::endl;
             }
+            _pool_mutex.clear(std::memory_order_release);
         }
         catch(const std::exception& e)
         {
@@ -117,14 +118,14 @@ InfluxConnection* ConnectionPool::GetConnecion(unsigned int timeout)
     do
     {
         success = connectionQueue.try_dequeue(ind);
-        if(success && ind < mySqlPtrList.size())
+        if(success && ind < infdbPtrList.size())
         {
-            _pool_mutex.lock();
+            _pool_mutex.test_and_set(std::memory_order_acquire);
             auto it = Indexes.find(ind);
             if(it != Indexes.end())
                 Indexes.erase(ind);
-            _pool_mutex.unlock();
-            return mySqlPtrList[ind].get();
+            _pool_mutex.clear(std::memory_order_relaxed);
+            return infdbPtrList[ind].get();
         }
 
         // set max waiting time to get connection
@@ -147,14 +148,14 @@ bool ConnectionPool::ReleaseConnecion(InfluxConnection* sqlPtr)
 {
     if(sqlPtr->getPoolId() > -1)
     {
-        _pool_mutex.lock();
+        _pool_mutex.test_and_set(std::memory_order_acquire);
         auto it = Indexes.find(sqlPtr->getPoolId());
         if(it == Indexes.end())
         {
             connectionQueue.enqueue(sqlPtr->getPoolId());
             Indexes.insert(sqlPtr->getPoolId());
         }
-        _pool_mutex.unlock();
+        _pool_mutex.clear(std::memory_order_relaxed);
         return true;
     }
     return false;
@@ -168,37 +169,36 @@ bool ConnectionPool::OpenPoolConnections()
 void ConnectionPool::ClosePoolConnections()
 {
     hasActiveConnections = false;
-    for(auto& sqlPtr: mySqlPtrList)
+    for(auto& sqlPtr: infdbPtrList)
     {
         if(sqlPtr != nullptr && sqlPtr->isValide())
             sqlPtr->disconnect();
     }
 
-    _pool_mutex.lock();
-    while(connectionQueue.peek() != nullptr)
-        connectionQueue.pop();
+    _pool_mutex.test_and_set(std::memory_order_acquire);
+    connectionQueue = moodycamel::ConcurrentQueue<int>();
     Indexes = std::unordered_set<int>();
-    _pool_mutex.unlock();
+    _pool_mutex.clear(std::memory_order_release);
 }
 
 void ConnectionPool::ResetPoolConnections()
 {
     bool success = false;
     ClosePoolConnections();
-    for(auto& sqlPtr: mySqlPtrList)
+    for(auto& sqlPtr: infdbPtrList)
     {
         success = sqlPtr->open();
         if(success)
         {
-            _pool_mutex.lock();
+            _pool_mutex.test_and_set(std::memory_order_acquire);
             Indexes.insert(sqlPtr->getPoolId());
             connectionQueue.enqueue(sqlPtr->getPoolId());
-            _pool_mutex.unlock();
+            _pool_mutex.clear(std::memory_order_release);
         }
         else
         {
             std::cerr << "Connection pool failed. Cannot connect to server." << std::endl;
-            for(auto& sqlPtr : mySqlPtrList)
+            for(auto& sqlPtr : infdbPtrList)
             {
                 if(sqlPtr != nullptr && sqlPtr->isValide())
                     sqlPtr->disconnect();
@@ -206,7 +206,7 @@ void ConnectionPool::ResetPoolConnections()
         }
     }
 
-    size_t count = mySqlPtrList.size();
+    size_t count = infdbPtrList.size();
     if(success && count > 0 && count == connectionQueue.size_approx())
         hasActiveConnections = true;
 }

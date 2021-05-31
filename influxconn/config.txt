@@ -1,7 +1,0 @@
-dbhost 127.0.0.1
-port 3306
-user root
-password dom@1234
-database bncfut30min
-table BTCUSDT
-connections 2

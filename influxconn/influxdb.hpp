@@ -35,11 +35,14 @@ namespace influxdb_cpp {
         std::string host_;
         int port_;
         std::string db_;
-        std::string usr_;
-        std::string pwd_;
+        std::string token_;
         std::string precision_;
-        server_info(const std::string& host, int port, const std::string& db = "", const std::string& usr = "", const std::string& pwd = "", const std::string& precision="ms")
-            : host_(host), port_(port), db_(db), usr_(usr), pwd_(pwd), precision_(precision) {}
+        std::string org_;
+        std::string bucket_;
+        server_info(const std::string& host, int port, const std::string& db = "", 
+                const std::string& token = "", const std::string& org = "", 
+                const std::string& bucket = "", const std::string& precision="ms")
+            : host_(host), port_(port), db_(db), token_(token), org_(org), bucket_(bucket), precision_(precision) {}
     };
     namespace detail {
         struct meas_caller;
@@ -56,12 +59,12 @@ namespace influxdb_cpp {
     inline int query(int sock, std::string& resp, const std::string& query, const server_info& si) {
         std::string qs("&q=");
         detail::inner::url_encode(qs, query);
-        return detail::inner::http_request(sock, "GET", "query", qs, "", si, &resp);
+        return detail::inner::http_request(sock, "GET", "api/v2/query", qs, "", si, &resp);
     }
     inline int create_db(int sock, std::string& resp, const std::string& db_name, const server_info& si) {
         std::string qs("&q=create+database+");
         detail::inner::url_encode(qs, db_name);
-        return detail::inner::http_request(sock, "POST", "query", qs, "", si, &resp);
+        return detail::inner::http_request(sock, "POST", "api/v2/query", qs, "", si, &resp);
     }
 
     struct builder {
@@ -116,7 +119,7 @@ namespace influxdb_cpp {
             return (detail::ts_caller&)*this;
         }
         int _post_http(int sock, const server_info& si, std::string* resp) {
-            return detail::inner::http_request(sock, "POST", "write", "", lines_.str(), si, resp);
+            return detail::inner::http_request(sock, "POST", "api/v2/write", "", lines_.str(), si, resp);
         }
         int _send_udp(const std::string& host, int port) {
             int sock, ret = 0;
@@ -208,9 +211,9 @@ namespace influxdb_cpp {
 
             for(;;) {
                 iv[0].iov_len = snprintf(&header[0], len,
-                    "%s /%s?db=%s&u=%s&p=%s&epoch=%s%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %d\r\n\r\n",
-                    method, uri, si.db_.c_str(), si.usr_.c_str(), si.pwd_.c_str(), si.precision_.c_str(),
-                    querystring.c_str(), si.host_.c_str(), (int)body.length());
+                    "%s /%s?org=%s&bucket=%s&db=%s&epoch=%s%s HTTP/1.1\r\nHost: %s\r\nAuthorization: Token %s\r\nContent-Length: %d\r\n\r\n",
+                    method, uri, si.org_.c_str(), si.bucket_.c_str(), si.db_.c_str(), si.precision_.c_str(),
+                    querystring.c_str(), si.host_.c_str(), si.token_.c_str(), (int)body.length());
                 if((int)iv[0].iov_len >= len)
                     header.resize(len *= 2);
                 else
@@ -219,6 +222,9 @@ namespace influxdb_cpp {
             iv[0].iov_base = &header[0];
             iv[1].iov_base = (void*)&body[0];
             iv[1].iov_len = body.length();
+
+            //std::cout << "ENDPOINT: " << header << std::endl;
+            //std::cout << "BODY: " << body << std::endl;
 
             if(writev(sock, iv, 2) < (int)(iv[0].iov_len + iv[1].iov_len)) {
                 ret_code = -6;

@@ -14,8 +14,9 @@ using namespace influxdb_cpp;
 class InfluxConnection
 {
 public:
-	InfluxConnection(string server, int port, string user, string password, string database); 
-	InfluxConnection(string server, int port, string user, string password, string database, int id); 
+	InfluxConnection(string server, int port, string user, string token, string database); 
+	InfluxConnection(string server, int port, string user, string token,
+					string database, string org, string bucket, int id); 
 	~InfluxConnection();
 	
 	bool open(int retry=2);
@@ -34,38 +35,37 @@ private:
 	int index;
 	int sock;
 	int port;
-	string server, user, password, database;
+	string server, user, token, database;
 	struct sockaddr_in addr;
 };
 
 
 ///constructor to set mysql connection variables
 InfluxConnection::InfluxConnection(
-	std::string server, int port, std::string user, 
-	std::string password, std::string database) 
+	std::string server, int port, string user, string token, std::string database) 
 {
 	this->server = server;
 	this->port = port;
 	this->user = user;
-	this->password = password;
+	this->token = token;
 	this->database = database;
 	this->index = -1;
 	this->sock = -1;
-	this->siPtr.reset(new server_info(server, port, database, user, password));
+	this->siPtr.reset(new server_info(server, port, database, token));
 }
 
 InfluxConnection::InfluxConnection(
-	std::string server, int port, std::string user, 
-	std::string password, std::string database, int id) 
+	std::string server, int port, string user, string token,
+	string database, string org, string bucket, int id) 
 {
 	this->server = server;
 	this->port = port;
 	this->user = user;
-	this->password = password;
+	this->token = token;
 	this->database = database;
 	this->index = id;
 	this->sock = -1;
-	this->siPtr.reset(new server_info(server, port, database, user, password));
+	this->siPtr.reset(new server_info(server, port, database, token, org, bucket));
 }
 
 InfluxConnection::~InfluxConnection()

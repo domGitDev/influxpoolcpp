@@ -23,12 +23,15 @@
 std::string host = "127.0.0.1";
 std::string username = "root";
 std::string password = "password";
-std::string database = "mydb";
+std::string database = "my_db";
+std::string database = "my_table";
+std::string org = "my_organization";
+std::string bucket = "my_bucket";
 size_t NUM_CONNS = 3;
 
 std::shared_ptr<ConnectionPool> connPool;
 connPool.reset(new ConnectionPool(
-                host, port, username, password, database, NUM_CONNS));
+            host, port, username, password, org, bucket, database, NUM_CONNS));
 
 // get connection
 auto sqlPtr = connPool->GetConnecion();
